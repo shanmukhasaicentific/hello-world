@@ -1,32 +1,83 @@
-name: Deploy to Azure VM
+name: Deploy Java App to Azure VM
 
 on:
   push:
     branches: [master]
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: self-hosted
 
     steps:
+      # ─────────────────────────────────
+      # Step 1: Get the latest code
+      # ─────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
+      # ─────────────────────────────────
+      # Step 2: Show what files we have
+      # ─────────────────────────────────
+      - name: Show directory structure
+        run: |
+          echo "=== Current Directory ==="
+          pwd
+          echo "=== Files Present ==="
+          ls -la
+          echo "=== Java Version ==="
+          java -version
+          echo "=== Maven Version ==="
+          mvn -version
 
-      - name: Install dependencies
-        run: npm install        # ✅ changed from npm ci
+      # ─────────────────────────────────
+      # Step 3: Build with Maven
+      # mvn clean = remove old build files
+      # package = compile + test + package
+      # -DskipTests = skip tests for now
+      # ─────────────────────────────────
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
 
-      - name: Run tests
-        run: npm test || true
+      # ─────────────────────────────────
+      # Step 4: Run Tests
+      # ─────────────────────────────────
+      - name: Run Tests
+        run: mvn test || true
 
+      # ─────────────────────────────────
+      # Step 5: Build Docker Image
+      # ─────────────────────────────────
+      - name: Build Docker image
+        run: |
+          docker build -t hello-world:latest .
+          echo "Docker image built successfully"
+          docker images | grep hello-world
+
+      # ─────────────────────────────────
+      # Step 6: Deploy — Stop old container
+      # start new one
+      # ─────────────────────────────────
       - name: Deploy application
         run: |
-          pm2 restart hello-world || pm2 start index.js --name hello-world
-          pm2 save
+          # Stop and remove old container if running
+          docker stop hello-world-app || true
+          docker rm hello-world-app || true
 
+          # Run new container
+          docker run -d \
+            --name hello-world-app \
+            --restart always \
+            -p 8080:8080 \
+            hello-world:latest
+
+          echo "Container started successfully"
+
+      # ─────────────────────────────────
+      # Step 7: Verify it's running
+      # ─────────────────────────────────
       - name: Verify deployment
-        run: pm2 list
+        run: |
+          sleep 5
+          docker ps | grep hello-world-app
+          echo "=== Container Logs ==="
+          docker logs hello-world-app --tail 20
