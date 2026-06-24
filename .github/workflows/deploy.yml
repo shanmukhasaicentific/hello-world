@@ -10,7 +10,7 @@ name: Deploy to Azure VM
 # ─────────────────────────────────────────────
 on:
   push:
-    branches: [main]
+    branches: [master]
 
 # ─────────────────────────────────────────────
 # JOBS: Groups of steps to run
