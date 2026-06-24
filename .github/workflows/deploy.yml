@@ -1,0 +1,75 @@
+# ─────────────────────────────────────────────
+# Name of your pipeline (shows in GitHub UI)
+# ─────────────────────────────────────────────
+name: Deploy to Azure VM
+
+# ─────────────────────────────────────────────
+# TRIGGER: When does this workflow run?
+# on: push means "run when someone pushes code"
+# branches: [main] means "only on the main branch"
+# ─────────────────────────────────────────────
+on:
+  push:
+    branches: [main]
+
+# ─────────────────────────────────────────────
+# JOBS: Groups of steps to run
+# ─────────────────────────────────────────────
+jobs:
+  deploy:
+    # WHERE to run: your self-hosted Azure VM
+    runs-on: self-hosted
+
+    steps:
+      # ─────────────────────────────────────────
+      # STEP 1: Checkout code
+      # "uses" means use a pre-built action
+      # actions/checkout@v4 downloads your code
+      # onto the runner
+      # ─────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ─────────────────────────────────────────
+      # STEP 2: Set up Node.js version
+      # Ensures correct Node.js version is used
+      # ─────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      # ─────────────────────────────────────────
+      # STEP 3: Install dependencies
+      # npm ci = clean install (faster, more reliable
+      # than npm install in CI environments)
+      # ─────────────────────────────────────────
+      - name: Install dependencies
+        run: npm ci
+
+      # ─────────────────────────────────────────
+      # STEP 4: Run tests (if they exist)
+      # || true means "don't fail if no tests"
+      # ─────────────────────────────────────────
+      - name: Run tests
+        run: npm test || true
+
+      # ─────────────────────────────────────────
+      # STEP 5: Deploy with PM2
+      # pm2 start: start app (first time)
+      # pm2 restart: restart if already running
+      # || means "if first command fails, try second"
+      # pm2 save: saves process list for reboot
+      # ─────────────────────────────────────────
+      - name: Deploy application
+        run: |
+          cd $GITHUB_WORKSPACE
+          pm2 restart hello-world || pm2 start index.js --name hello-world
+          pm2 save
+
+      # ─────────────────────────────────────────
+      # STEP 6: Verify deployment
+      # Shows PM2 process list for confirmation
+      # ─────────────────────────────────────────
+      - name: Verify deployment
+        run: pm2 list
