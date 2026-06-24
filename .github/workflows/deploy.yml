@@ -48,39 +48,27 @@ jobs:
       # Step 5: Build Docker image
       - name: Build Docker Image
         run: |
-          docker build -t hello-world-tomcat:latest .
+          sudo docker build -t hello-world-tomcat:latest .
           echo "==== Image built ===="
-          docker images | grep hello-world-tomcat
+          sudo docker images | grep hello-world-tomcat
 
-      # Step 6: Stop old, start new container
       - name: Deploy Container
         run: |
-          echo "==== Removing old container ===="
-          docker stop hello-world-app || true
-          docker rm hello-world-app || true
+          sudo docker stop hello-world-app || true
+          sudo docker rm hello-world-app || true
 
-          echo "==== Starting new container ===="
-          docker run -d \
+          sudo docker run -d \
             --name hello-world-app \
             --restart always \
             -p 8080:8080 \
             hello-world-tomcat:latest
 
-          echo "==== Deployment done ===="
-          docker ps
+          sudo docker ps
 
-      # Step 7: Wait and verify
       - name: Verify Deployment
         run: |
-          echo "==== Waiting 15s for Tomcat to start ===="
           sleep 15
-          
-          echo "==== Container status ===="
-          docker ps | grep hello-world-app
-          
-          echo "==== Tomcat logs ===="
-          docker logs hello-world-app --tail 20
-          
-          echo "==== Testing app ===="
+          sudo docker ps | grep hello-world-app
+          sudo docker logs hello-world-app --tail 20
           curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" \
             http://localhost:8080 || echo "Still starting..."
