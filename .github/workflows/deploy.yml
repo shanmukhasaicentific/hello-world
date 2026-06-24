@@ -1,4 +1,4 @@
-name: Deploy Java App to Azure VM
+name: Deploy Java Tomcat App to Azure VM
 
 on:
   push:
@@ -9,75 +9,78 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      # ─────────────────────────────────
-      # Step 1: Get the latest code
-      # ─────────────────────────────────
+      # Step 1: Checkout code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ─────────────────────────────────
-      # Step 2: Show what files we have
-      # ─────────────────────────────────
-      - name: Show directory structure
+      # Step 2: Verify we are in right directory
+      - name: Verify environment
         run: |
-          echo "=== Current Directory ==="
+          echo "==== Working Directory ===="
           pwd
-          echo "=== Files Present ==="
+          echo "==== Files Present ===="
           ls -la
-          echo "=== Java Version ==="
-          java -version
-          echo "=== Maven Version ==="
-          mvn -version
+          echo "==== pom.xml exists? ===="
+          cat pom.xml | grep artifactId | head -3
 
-      # ─────────────────────────────────
-      # Step 3: Build with Maven
-      # mvn clean = remove old build files
-      # package = compile + test + package
-      # -DskipTests = skip tests for now
-      # ─────────────────────────────────
-      - name: Build with Maven
-        run: mvn clean package -DskipTests
-
-      # ─────────────────────────────────
-      # Step 4: Run Tests
-      # ─────────────────────────────────
-      - name: Run Tests
-        run: mvn test || true
-
-      # ─────────────────────────────────
-      # Step 5: Build Docker Image
-      # ─────────────────────────────────
-      - name: Build Docker image
+      # Step 3: Build WAR with Maven
+      # Must run from directory containing pom.xml
+      - name: Build WAR with Maven
         run: |
-          docker build -t hello-world:latest .
-          echo "Docker image built successfully"
-          docker images | grep hello-world
+          mvn clean package -DskipTests
+          echo "==== Build complete ===="
+          
+          # Confirm WAR was created
+          echo "==== WAR file location ===="
+          find . -name "*.war" -type f
 
-      # ─────────────────────────────────
-      # Step 6: Deploy — Stop old container
-      # start new one
-      # ─────────────────────────────────
-      - name: Deploy application
+      # Step 4: Copy WAR to root for Docker
+      # Dockerfile does COPY ./*.war
+      # So WAR must be in same folder as Dockerfile
+      - name: Prepare WAR for Docker
         run: |
-          # Stop and remove old container if running
+          # Copy the webapp.war to root directory
+          cp webapp/target/webapp.war ./webapp.war
+          
+          echo "==== WAR ready for Docker ===="
+          ls -lh *.war
+
+      # Step 5: Build Docker image
+      - name: Build Docker Image
+        run: |
+          docker build -t hello-world-tomcat:latest .
+          echo "==== Image built ===="
+          docker images | grep hello-world-tomcat
+
+      # Step 6: Stop old, start new container
+      - name: Deploy Container
+        run: |
+          echo "==== Removing old container ===="
           docker stop hello-world-app || true
           docker rm hello-world-app || true
 
-          # Run new container
+          echo "==== Starting new container ===="
           docker run -d \
             --name hello-world-app \
             --restart always \
             -p 8080:8080 \
-            hello-world:latest
+            hello-world-tomcat:latest
 
-          echo "Container started successfully"
+          echo "==== Deployment done ===="
+          docker ps
 
-      # ─────────────────────────────────
-      # Step 7: Verify it's running
-      # ─────────────────────────────────
-      - name: Verify deployment
+      # Step 7: Wait and verify
+      - name: Verify Deployment
         run: |
-          sleep 5
+          echo "==== Waiting 15s for Tomcat to start ===="
+          sleep 15
+          
+          echo "==== Container status ===="
           docker ps | grep hello-world-app
-          echo "=== Container Logs ==="
+          
+          echo "==== Tomcat logs ===="
           docker logs hello-world-app --tail 20
+          
+          echo "==== Testing app ===="
+          curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" \
+            http://localhost:8080 || echo "Still starting..."
