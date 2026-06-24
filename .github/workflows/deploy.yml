@@ -45,7 +45,7 @@ jobs:
       # than npm install in CI environments)
       # ─────────────────────────────────────────
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       # ─────────────────────────────────────────
       # STEP 4: Run tests (if they exist)
